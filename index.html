@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Class Bingo 🎰</title>
+<script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-database-compat.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#06090f;--card:#0c1220;--border:#1a2840;--text:#e2e8f0;--dim:#64748b;--sub:#94a3b8;--blue:#3b82f6;--green:#22c55e;--yellow:#f59e0b;--red:#ef4444;--purple:#a78bfa;--pink:#ec4899}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh}
+#stars{position:fixed;inset:0;pointer-events:none;z-index:0;overflow:hidden}
+.star{position:absolute;border-radius:50%;background:#fff;animation:twinkle var(--d,3s) var(--delay,0s) infinite alternate}
+@keyframes twinkle{from{opacity:.1}to{opacity:.6}}
+nav{position:sticky;top:0;z-index:100;background:#06090fee;backdrop-filter:blur(16px);border-bottom:1px solid var(--border);padding:0 20px;display:flex;align-items:center;gap:10px;height:56px}
+.nav-back{font-size:.8rem;font-weight:700;color:var(--dim);text-decoration:none;padding:5px 12px;border:1px solid var(--border);border-radius:20px;transition:color .2s}
+.nav-back:hover{color:var(--text)}
+.nav-title{font-size:1.1rem;font-weight:900;background:linear-gradient(90deg,var(--yellow),var(--pink));-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-right:auto}
+.screen{display:none;position:relative;z-index:1;max-width:700px;margin:0 auto;padding:32px 20px}
+.screen.active{display:block}
+.role-cards{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:24px}
+.role-card{background:var(--card);border:2px solid var(--border);border-radius:20px;padding:28px 20px;text-align:center;cursor:pointer;transition:all .25s}
+.role-card:hover{transform:translateY(-4px);border-color:var(--yellow)}
+.role-icon{font-size:2.8rem;margin-bottom:10px}
+.role-name{font-size:1rem;font-weight:800;margin-bottom:4px}
+.role-desc{font-size:.8rem;color:var(--dim)}
+.label{font-size:.72rem;font-weight:800;text-transform:uppercase;letter-spacing:1.5px;color:var(--yellow);margin-bottom:8px}
+textarea,input[type=text]{background:#111827;border:1px solid var(--border);color:#fff;border-radius:10px;padding:10px 14px;font-size:.9rem;width:100%;outline:none;transition:border-color .2s;font-family:inherit}
+textarea{resize:vertical;min-height:120px}
+input:focus,textarea:focus{border-color:var(--blue)}
+.big-btn{width:100%;padding:14px;border-radius:14px;border:none;font-size:1rem;font-weight:800;cursor:pointer;transition:all .2s;margin-top:8px}
+.big-btn:hover{transform:translateY(-2px);filter:brightness(1.1)}
+.big-btn.yellow{background:linear-gradient(135deg,var(--yellow),#f97316);color:#000}
+.big-btn.green{background:linear-gradient(135deg,var(--green),#15803d);color:#fff}
+.big-btn.ghost{background:var(--card);border:1px solid var(--border);color:var(--text)}
+/* Code display */
+.code-box{background:var(--card);border:2px solid var(--yellow);border-radius:20px;padding:20px;text-align:center;margin-bottom:20px}
+.code-num{font-size:3rem;font-weight:900;letter-spacing:8px;color:var(--yellow)}
+.code-hint{font-size:.78rem;color:var(--sub);margin-top:6px}
+/* Called words */
+.caller-section{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:20px;margin-bottom:16px}
+.current-call{font-size:2.2rem;font-weight:900;text-align:center;padding:20px;color:var(--yellow);min-height:80px;display:flex;align-items:center;justify-content:center}
+.called-chips{display:flex;flex-wrap:wrap;gap:6px;max-height:120px;overflow-y:auto;margin-top:10px}
+.called-chip{padding:4px 10px;border-radius:20px;font-size:.75rem;font-weight:700;background:#1a2840;color:var(--sub)}
+.called-chip.latest{background:var(--yellow);color:#000}
+.remaining-count{font-size:.82rem;color:var(--dim);margin-top:8px;text-align:center}
+/* Bingo Grid */
+.bingo-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:20px}
+.bingo-header{display:flex;justify-content:space-around;margin-bottom:6px}
+.bingo-h{font-size:1.4rem;font-weight:900;text-align:center;width:20%}
+.bingo-cell{aspect-ratio:1;background:var(--card);border:2px solid var(--border);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:.72rem;font-weight:700;text-align:center;padding:4px;cursor:pointer;transition:all .2s;line-height:1.3;word-break:break-word;hyphens:auto;user-select:none}
+.bingo-cell:hover{border-color:var(--yellow)}
+.bingo-cell.marked{background:var(--yellow);color:#000;border-color:var(--yellow);transform:scale(1.05)}
+.bingo-cell.free{background:#1a2840;color:var(--purple);border-color:var(--purple);font-size:1.2rem;cursor:default}
+.bingo-cell.bingo-win{background:var(--green);color:#000;border-color:var(--green);animation:pulse .5s ease infinite alternate}
+@keyframes pulse{from{transform:scale(1)}to{transform:scale(1.08)}}
+/* Bingo winner */
+.bingo-banner{background:linear-gradient(135deg,var(--yellow),var(--pink));border-radius:16px;padding:20px;text-align:center;margin-bottom:16px;animation:popIn .4s ease-out}
+@keyframes popIn{from{transform:scale(0.5);opacity:0}to{transform:scale(1);opacity:1}}
+.bingo-banner h2{font-size:2rem;font-weight:900;color:#000;margin-bottom:4px}
+.bingo-banner p{color:#00000099;font-size:.9rem}
+/* Join */
+.code-input-big{width:100%;text-align:center;font-size:2rem;font-weight:900;letter-spacing:8px;background:#111827;border:2px solid var(--border);color:#fff;border-radius:12px;padding:12px;outline:none;transition:border-color .2s;margin-bottom:14px}
+.code-input-big:focus{border-color:var(--yellow)}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1e293b;border:1px solid var(--border);border-radius:50px;padding:10px 24px;font-size:.9rem;font-weight:600;z-index:999;transition:opacity .3s;pointer-events:none}
+</style>
+</head>
+<body>
+<div id="stars"></div>
+<nav>
+  <a href="https://eppeok.github.io" class="nav-back">← All Tools</a>
+  <div class="nav-title">🎰 Class Bingo</div>
+</nav>
+
+<!-- ROLE -->
+<div id="screen-role" class="screen active">
+  <h1 style="font-size:2rem;font-weight:900;margin-bottom:6px">🎰 Class Bingo</h1>
+  <p style="color:var(--sub)">Vocab bingo for any subject. Teacher calls, students mark off their cards.</p>
+  <div class="role-cards">
+    <div class="role-card" onclick="showScreen('teacher-setup')">
+      <div class="role-icon">👩‍🏫</div><div class="role-name">Teacher</div><div class="role-desc">Create the word list and call out items</div>
+    </div>
+    <div class="role-card" onclick="showScreen('student-join')">
+      <div class="role-icon">🧑‍🎓</div><div class="role-name">Student</div><div class="role-desc">Get a random bingo card</div>
+    </div>
+  </div>
+  <div style="margin-top:28px;background:var(--card);border:1px solid var(--border);border-radius:14px;padding:18px">
+    <div class="label" style="margin-bottom:8px">Solo Practice</div>
+    <p style="font-size:.82rem;color:var(--sub);margin-bottom:12px">No code needed — paste your own word list and play solo.</p>
+    <button class="big-btn yellow" onclick="showScreen('solo-setup')">Play Solo 🎲</button>
+  </div>
+</div>
+
+<!-- TEACHER SETUP -->
+<div id="screen-teacher-setup" class="screen">
+  <h2 style="font-size:1.4rem;font-weight:900;margin-bottom:20px">🎰 Create Bingo Game</h2>
+  <div class="label">Word / Phrase List</div>
+  <p style="font-size:.78rem;color:var(--dim);margin-bottom:8px">One per line or comma-separated. Need at least 24 items for a 5×5 grid.</p>
+  <textarea id="teacher-words" placeholder="photosynthesis&#10;mitosis&#10;osmosis&#10;cell membrane&#10;chromosome&#10;..."></textarea>
+  <button class="big-btn yellow" style="margin-top:16px" onclick="createBingo()">Create Game →</button>
+  <button class="big-btn ghost" onclick="showScreen('role')">← Back</button>
+</div>
+
+<!-- TEACHER CALLER -->
+<div id="screen-teacher-caller" class="screen">
+  <div class="code-box">
+    <div style="font-size:.7rem;font-weight:800;text-transform:uppercase;letter-spacing:2px;color:var(--dim);margin-bottom:6px">Game Code</div>
+    <div class="code-num" id="t-game-code">----</div>
+    <div class="code-hint">Students join at <strong>eppeok.github.io/bingo</strong></div>
+  </div>
+  <div class="caller-section">
+    <div style="font-size:.72rem;font-weight:800;text-transform:uppercase;letter-spacing:1.5px;color:var(--yellow);margin-bottom:8px">Current Call</div>
+    <div class="current-call" id="current-call">Press "Call Next" to start!</div>
+    <div class="remaining-count" id="remaining-count"></div>
+  </div>
+  <button class="big-btn yellow" id="call-btn" onclick="callNext()">📢 Call Next Item</button>
+  <div style="margin-top:16px">
+    <div class="label">Called So Far</div>
+    <div class="called-chips" id="called-chips"></div>
+  </div>
+  <button class="big-btn ghost" style="margin-top:16px" onclick="endBingo()">End Game</button>
+</div>
+
+<!-- STUDENT JOIN -->
+<div id="screen-student-join" class="screen">
+  <h2 style="font-size:1.4rem;font-weight:900;margin-bottom:8px">Join a Bingo Game</h2>
+  <p style="color:var(--sub);margin-bottom:20px">Enter the code your teacher put on the board.</p>
+  <input type="text" id="student-name-bingo" placeholder="Your name..." maxlength="16" style="margin-bottom:12px"/>
+  <input type="number" class="code-input-big" id="bingo-join-code" placeholder="1234" maxlength="4"/>
+  <button class="big-btn yellow" onclick="joinBingo()">Get My Card →</button>
+  <button class="big-btn ghost" onclick="showScreen('role')">← Back</button>
+</div>
+
+<!-- SOLO SETUP -->
+<div id="screen-solo-setup" class="screen">
+  <h2 style="font-size:1.4rem;font-weight:900;margin-bottom:20px">🎲 Solo Bingo</h2>
+  <div class="label">Your Word List</div>
+  <textarea id="solo-words" placeholder="One word or phrase per line..."></textarea>
+  <button class="big-btn yellow" style="margin-top:16px" onclick="startSolo()">Generate My Card →</button>
+  <button class="big-btn ghost" onclick="showScreen('role')">← Back</button>
+</div>
+
+<!-- STUDENT / SOLO CARD -->
+<div id="screen-card" class="screen">
+  <div id="bingo-winner-banner" style="display:none" class="bingo-banner">
+    <h2>🎉 BINGO!</h2>
+    <p id="bingo-winner-msg">You got a line!</p>
+  </div>
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+    <h2 style="font-size:1.1rem;font-weight:900">🎰 Your Bingo Card</h2>
+    <div id="called-display" style="font-size:.8rem;color:var(--dim)">Waiting for calls...</div>
+  </div>
+  <div class="bingo-header"><div class="bingo-h" style="color:#ef4444">B</div><div class="bingo-h" style="color:#f97316">I</div><div class="bingo-h" style="color:#f59e0b">N</div><div class="bingo-h" style="color:#22c55e">G</div><div class="bingo-h" style="color:#3b82f6">O</div></div>
+  <div class="bingo-grid" id="bingo-grid"></div>
+  <p style="font-size:.78rem;color:var(--dim);text-align:center;margin-bottom:12px">Tap a cell to mark it when called.</p>
+  <button class="big-btn yellow" onclick="checkBingo()">Check for BINGO 🎰</button>
+  <button class="big-btn ghost" onclick="showScreen('role')">New Game</button>
+</div>
+
+<div class="toast" id="toast" style="opacity:0"></div>
+<script>
+let db;
+try{
+  if(!firebase.apps.length) firebase.initializeApp({apiKey:"AIzaSyAfflbNLrrn95tPvLW0bzR8Q4iAqOKUOrM",authDomain:"sdvb-d16b2.firebaseapp.com",databaseURL:"https://sdvb-d16b2-default-rtdb.firebaseio.com",projectId:"sdvb-d16b2",storageBucket:"sdvb-d16b2.firebasestorage.app",messagingSenderId:"1007920126855",appId:"1:1007920126855:web:4d5fd1d73d311bd694d122"});
+  db=firebase.database();
+}catch(e){console.warn('Firebase',e);}
+
+(()=>{const c=document.getElementById('stars');for(let i=0;i<70;i++){const s=document.createElement('div');s.className='star';const sz=Math.random()*2+1;s.style.cssText=`width:${sz}px;height:${sz}px;left:${Math.random()*100}%;top:${Math.random()*100}%;--d:${2+Math.random()*4}s;--delay:${Math.random()*4}s;opacity:.3`;c.appendChild(s);}})();
+
+function showScreen(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));document.getElementById('screen-'+id).classList.add('active');}
+function toast(msg,ms=2500){const el=document.getElementById('toast');el.textContent=msg;el.style.opacity='1';setTimeout(()=>el.style.opacity='0',ms);}
+function escHtml(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function genCode(){return String(Math.floor(1000+Math.random()*9000));}
+function shuffle(a){const b=[...a];for(let i=b.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[b[i],b[j]]=[b[j],b[i]];}return b;}
+function parseWords(raw){return raw.split(/[\n,]+/).map(w=>w.trim()).filter(w=>w);}
+
+// Teacher state
+let tWords=[], tCalled=[], tRemaining=[], tCode=null, tListener=null;
+
+async function createBingo(){
+  const raw=document.getElementById('teacher-words').value;
+  const words=parseWords(raw);
+  if(words.length<24){toast('Need at least 24 words for a 5×5 grid');return;}
+  const code=genCode();
+  tCode=code;
+  tWords=[...words];
+  tCalled=[];
+  tRemaining=shuffle([...words]);
+  if(db){
+    try{await db.ref('bingo/'+code).set({words,called:[],active:true,createdAt:firebase.database.ServerValue.TIMESTAMP});}
+    catch(e){toast('Warning: Firebase error — game may not sync to students');}
+  }
+  document.getElementById('t-game-code').textContent=code;
+  document.getElementById('current-call').textContent='Press "Call Next" to start!';
+  document.getElementById('called-chips').innerHTML='';
+  updateRemaining();
+  showScreen('teacher-caller');
+}
+
+function updateRemaining(){
+  document.getElementById('remaining-count').textContent=`${tRemaining.length} items remaining`;
+  if(!tRemaining.length) document.getElementById('call-btn').disabled=true;
+}
+
+async function callNext(){
+  if(!tRemaining.length){toast('All items called!');return;}
+  const item=tRemaining.pop();
+  tCalled.push(item);
+  document.getElementById('current-call').textContent=item;
+  updateRemaining();
+  // Update called chips
+  const chips=document.getElementById('called-chips');
+  chips.innerHTML=tCalled.map((w,i)=>`<div class="called-chip${i===tCalled.length-1?' latest':''}">${escHtml(w)}</div>`).join('');
+  // Push to Firebase
+  if(db&&tCode){
+    db.ref('bingo/'+tCode+'/called').set(tCalled).catch(()=>{});
+  }
+}
+
+function endBingo(){
+  if(db&&tCode){db.ref('bingo/'+tCode+'/active').set(false).catch(()=>{});}
+  tCode=null;
+  showScreen('role');
+}
+
+// Student / solo card state
+let cardWords=[], marked=new Set(), isLive=false, liveListener=null, liveCode=null;
+
+function makeCard(words){
+  const shuffled=shuffle([...words]).slice(0,24);
+  // Inject into 5x5 with FREE in center (index 12)
+  cardWords=[];
+  let j=0;
+  for(let i=0;i<25;i++){
+    if(i===12) cardWords.push('FREE');
+    else cardWords.push(shuffled[j++]||'?');
+  }
+}
+
+function renderCard(){
+  marked=new Set();
+  marked.add(12); // free space
+  document.getElementById('bingo-winner-banner').style.display='none';
+  const grid=document.getElementById('bingo-grid');
+  grid.innerHTML=cardWords.map((w,i)=>{
+    if(w==='FREE') return `<div class="bingo-cell free" data-idx="${i}">⭐ FREE</div>`;
+    return `<div class="bingo-cell${i===12?' free':''}" data-idx="${i}" onclick="toggleCell(${i})">${escHtml(w)}</div>`;
+  }).join('');
+}
+
+function toggleCell(idx){
+  if(idx===12) return;
+  const cell=document.querySelector(`.bingo-cell[data-idx="${idx}"]`);
+  if(!cell) return;
+  if(marked.has(idx)){marked.delete(idx);cell.classList.remove('marked','bingo-win');}
+  else{marked.add(idx);cell.classList.add('marked');}
+}
+
+function checkBingo(){
+  // Check all lines
+  const lines=[];
+  for(let r=0;r<5;r++){const row=[];for(let c=0;c<5;c++) row.push(r*5+c);lines.push(row);}
+  for(let c=0;c<5;c++){const col=[];for(let r=0;r<5;r++) col.push(r*5+c);lines.push(col);}
+  lines.push([0,6,12,18,24]);lines.push([4,8,12,16,20]);
+  const winLines=lines.filter(line=>line.every(i=>marked.has(i)));
+  if(winLines.length){
+    winLines.forEach(line=>line.forEach(i=>{const c=document.querySelector(`.bingo-cell[data-idx="${i}"]`);if(c)c.classList.add('bingo-win');}));
+    document.getElementById('bingo-winner-banner').style.display='block';
+    document.getElementById('bingo-winner-msg').textContent=winLines.length>1?`${winLines.length} lines! Amazing!`:'You got a line!';
+    toast('🎉 BINGO!',4000);
+  } else {
+    toast('No bingo yet — keep going!');
+  }
+}
+
+async function joinBingo(){
+  const name=(document.getElementById('student-name-bingo').value||'').trim().slice(0,16);
+  const code=(document.getElementById('bingo-join-code').value||'').trim();
+  if(!name){toast('Enter your name');return;}
+  if(code.length!==4){toast('Enter the 4-digit code');return;}
+  if(!db){toast('No internet');return;}
+  try{
+    const snap=await db.ref('bingo/'+code).once('value');
+    const game=snap.val();
+    if(!game){toast('❌ Game not found');return;}
+    if(!game.active){toast('❌ This game has ended');return;}
+    makeCard(game.words||[]);
+    renderCard();
+    isLive=true; liveCode=code;
+    // Listen for called items
+    if(liveListener&&liveCode) db.ref('bingo/'+liveCode+'/called').off('value',liveListener);
+    liveListener=db.ref('bingo/'+code+'/called').on('value',snap2=>{
+      const called=snap2.val()||[];
+      document.getElementById('called-display').textContent=called.length?`Called: ${called[called.length-1]}`:'Waiting for teacher...';
+      // Auto-mark matching cells
+      called.forEach(word=>{
+        cardWords.forEach((w,i)=>{
+          if(w.toLowerCase()===word.toLowerCase()&&!marked.has(i)){
+            marked.add(i);
+            const cell=document.querySelector(`.bingo-cell[data-idx="${i}"]`);
+            if(cell) cell.classList.add('marked');
+          }
+        });
+      });
+    });
+    showScreen('card');
+  }catch(e){toast('Could not join — check connection');}
+}
+
+function startSolo(){
+  const raw=document.getElementById('solo-words').value;
+  const words=parseWords(raw);
+  if(words.length<24){toast('Need at least 24 words');return;}
+  isLive=false;
+  makeCard(words);
+  renderCard();
+  document.getElementById('called-display').textContent='Mark cells as you hear them';
+  showScreen('card');
+}
+</script>
+</body>
+</html>
