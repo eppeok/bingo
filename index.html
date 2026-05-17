@@ -318,6 +318,9 @@ function startSolo(){
   document.getElementById('called-display').textContent='Mark cells as you hear them';
   showScreen('card');
 }
+window.addEventListener('beforeunload',()=>{
+  if(liveListener&&liveCode&&db) db.ref('bingo/'+liveCode+'/called').off('value',liveListener);
+});
 </script>
 </body>
 </html>
